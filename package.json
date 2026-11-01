@@ -1,0 +1,28 @@
+{
+  "name": "glossa-lab",
+  "productName": "GlossaLab",
+  "version": "1.0.0",
+  "description": "Εκπαιδευτικός διερμηνευτής της ΓΛΩΣΣΑΣ με βηματική εκτέλεση, απεικόνιση μνήμης και αναλυτική εξήγηση λαθών",
+  "keywords": ["ΓΛΩΣΣΑ", "glossa", "interpreter", "education", "programming", "greek", "Πληροφορική"],
+  "homepage": "https://github.com/gethanos/glossa-lab",
+  "repository": { "type": "git", "url": "git+https://github.com/gethanos/glossa-lab.git" },
+  "bugs": { "url": "https://github.com/gethanos/glossa-lab/issues" },
+  "author": {
+    "name": "Αθανάσιος-Αντώνιος Γεωργαλάς",
+    "email": "info@cited.gr",
+    "url": "https://vle.cited.gr"
+  },
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "node build.mjs --minify",
+    "build:dev": "node build.mjs",
+    "test": "node build.mjs && node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.23.1",
+    "jsdom": "24.1.3"
+  }
+}

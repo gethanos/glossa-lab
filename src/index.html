@@ -1,0 +1,124 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT. Copyright (c) 2026 Αθανάσιος-Αντώνιος Γεωργαλάς -->
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- build:seo: στο build αντικαθίσταται από τα στοιχεία του tools/build/seo.mjs -->
+  <title>ΓΛΩΣΣΑ Lab (ανάπτυξη)</title>
+  <!-- endbuild -->
+  <!-- build:css -->
+  <link rel="stylesheet" href="styles/fonts.css">
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/layout.css">
+  <link rel="stylesheet" href="styles/editor.css">
+  <link rel="stylesheet" href="styles/panels.css">
+  <link rel="stylesheet" href="styles/about.css">
+  <!-- endbuild -->
+</head>
+<body>
+  <div class="app" id="app" data-view="code">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" id="brand-mark" aria-hidden="true"></span>
+        <div class="brand-text">
+          <h1>ΓΛΩΣΣΑ <span class="brand-lab">Lab</span></h1>
+          <p><span class="brand-tagline">εργαστήριο προγραμματισμού</span> <a class="brand-site" href="https://vle.cited.gr/apps" title="Περισσότερες εφαρμογές στο CITEd.gr">CITEd.gr</a></p>
+        </div>
+      </div>
+      <div class="toolbar" role="toolbar" aria-label="Εφαρμογή">
+        <label class="select-wrap">
+          <span class="sr-only">Παραδείγματα</span>
+          <select id="examples"><option value="">Παραδείγματα…</option></select>
+        </label>
+        <button type="button" class="btn btn-icon" id="btn-theme"></button>
+        <button type="button" class="btn btn-icon" id="btn-about" data-icon="info" title="Σχετικά" aria-label="Σχετικά"></button>
+      </div>
+    </header>
+
+    <div class="runbar" role="toolbar" aria-label="Εκτέλεση">
+      <div class="run-buttons">
+        <button type="button" class="btn btn-primary" id="btn-run" data-icon="play" title="Εκτέλεση (F5)"><span>Εκτέλεση</span></button>
+        <button type="button" class="btn" id="btn-step" data-icon="step" title="Βήμα: εκτελεί την επόμενη εντολή (F10)"><span>Βήμα</span></button>
+        <button type="button" class="btn" id="btn-over" data-icon="over" title="Βήμα πάνω από κλήση υποπρογράμματος (Shift+F10)"><span>Πάνω από</span></button>
+        <button type="button" class="btn" id="btn-out" data-icon="out" title="Ολοκλήρωση του τρέχοντος υποπρογράμματος"><span>Έξοδος</span></button>
+        <button type="button" class="btn" id="btn-animate" data-icon="animate" title="Αυτόματη βηματική εκτέλεση (F6)"><span>Αυτόματα</span></button>
+        <button type="button" class="btn btn-danger" id="btn-stop" data-icon="stop" title="Διακοπή (Esc)"><span>Διακοπή</span></button>
+      </div>
+      <label class="speed">
+        <span>Ταχύτητα</span>
+        <input type="range" id="speed" min="1" max="10" value="5" aria-label="Ταχύτητα αυτόματης εκτέλεσης">
+      </label>
+    </div>
+
+    <main class="workspace">
+      <section class="pane pane-code" aria-label="Κώδικας">
+        <div class="pane-head">
+          <h2>Κώδικας</h2>
+          <div id="dialect-switch" class="dialect-switch-host"></div>
+          <button type="button" class="diag-chip" id="diag-chip"></button>
+          <div class="code-actions" role="toolbar" aria-label="Αρχείο κώδικα">
+            <button type="button" class="btn btn-icon btn-quiet" id="btn-open" data-icon="open" title="Άνοιγμα αρχείου (Ctrl+O)" aria-label="Άνοιγμα αρχείου"></button>
+            <button type="button" class="btn btn-icon btn-quiet" id="btn-save" data-icon="save" title="Αποθήκευση στον υπολογιστή (Ctrl+S)" aria-label="Αποθήκευση στον υπολογιστή"></button>
+            <button type="button" class="btn btn-icon btn-quiet" id="btn-copy" data-icon="copy" title="Αντιγραφή κώδικα" aria-label="Αντιγραφή κώδικα"></button>
+            <button type="button" class="btn btn-icon btn-quiet" id="btn-format" data-icon="format" title="Στοίχιση κώδικα" aria-label="Στοίχιση κώδικα"></button>
+            <button type="button" class="btn btn-icon btn-quiet btn-danger" id="btn-clear" data-icon="trash" title="Καθαρισμός κώδικα (αναιρείται με Ctrl+Z)" aria-label="Καθαρισμός κώδικα"></button>
+            <button type="button" class="btn btn-icon btn-quiet" id="btn-maximize" data-icon="maximize" title="Μεγιστοποίηση κώδικα" aria-label="Μεγιστοποίηση κώδικα" aria-pressed="false"></button>
+          </div>
+        </div>
+        <div class="dialect-hint" id="dialect-hint" role="status" hidden>
+          <span id="dialect-hint-text"></span>
+          <button type="button" class="btn btn-small" id="dialect-hint-action"></button>
+        </div>
+        <div class="editor-host" id="editor-host"></div>
+        <div class="symbol-bar" id="symbol-bar" role="toolbar" aria-label="Σύμβολα"></div>
+      </section>
+
+      <section class="pane pane-io" aria-label="Είσοδος και έξοδος">
+        <div class="tabs" role="tablist" data-tabs="io">
+          <button type="button" role="tab" data-tab="output" aria-selected="true">Έξοδος</button>
+          <button type="button" role="tab" data-tab="inputs" aria-selected="false">Δεδομένα εισόδου <span class="badge badge-info" id="inputs-badge" hidden></span></button>
+          <button type="button" role="tab" data-tab="messages" aria-selected="false">Μηνύματα <span class="badge" id="msg-badge" hidden></span></button>
+        </div>
+        <div class="tab-panels">
+          <div class="tab-panel panel-output" role="tabpanel" data-panel="output" id="output"></div>
+          <div class="tab-panel panel-inputs" role="tabpanel" data-panel="inputs" hidden>
+            <label for="inputs" class="inputs-help">Προαιρετικό. Αν το αφήσεις κενό, κάθε ΔΙΑΒΑΣΕ θα σου ζητήσει την τιμή κατά την εκτέλεση. Αν γράψεις τιμές εδώ (μία σε κάθε γραμμή), το ΔΙΑΒΑΣΕ τις παίρνει με τη σειρά χωρίς να ρωτήσει, και ζητά τις υπόλοιπες όταν τελειώσουν. Βολεύει όταν τρέχεις το ίδιο πρόγραμμα πολλές φορές με τα ίδια δεδομένα.</label>
+            <textarea id="inputs" class="inputs" spellcheck="false" placeholder="π.χ.&#10;5&#10;12.5&#10;Μαρία"></textarea>
+          </div>
+          <div class="tab-panel panel-messages" role="tabpanel" data-panel="messages" id="messages" hidden></div>
+        </div>
+      </section>
+
+      <section class="pane pane-run" aria-label="Εκτέλεση">
+        <div class="explain" id="explain" aria-live="polite"></div>
+        <div class="tabs" role="tablist" data-tabs="run">
+          <button type="button" role="tab" data-tab="memory" aria-selected="true">Μνήμη</button>
+          <button type="button" role="tab" data-tab="flow" aria-selected="false">Βρόχοι και κλήσεις</button>
+          <button type="button" role="tab" data-tab="trace" aria-selected="false">Πίνακας τιμών</button>
+          <button type="button" role="tab" data-tab="guide" aria-selected="false">Οδηγός</button>
+        </div>
+        <div class="tab-panels">
+          <div class="tab-panel" role="tabpanel" data-panel="memory" id="memory"></div>
+          <div class="tab-panel" role="tabpanel" data-panel="flow" id="flow" hidden></div>
+          <div class="tab-panel panel-trace" role="tabpanel" data-panel="trace" id="trace" hidden></div>
+          <div class="tab-panel" role="tabpanel" data-panel="guide" id="guide" hidden></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="mobile-nav" aria-label="Προβολή">
+      <button type="button" data-view="code" aria-current="page" data-icon="code"><span>Κώδικας</span></button>
+      <button type="button" data-view="run" data-icon="memory"><span>Εκτέλεση</span></button>
+      <button type="button" data-view="io" data-icon="terminal"><span>Έξοδος</span><span class="badge" id="nav-badge" hidden></span></button>
+    </nav>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+  </div>
+  <!-- build:noscript --><!-- endbuild -->
+  <!-- build:js -->
+  <script type="module" src="main.js"></script>
+  <!-- endbuild -->
+</body>
+</html>

@@ -1,0 +1,20 @@
+/* SPDX-License-Identifier: MIT
+   Copyright (c) 2026 Αθανάσιος-Αντώνιος Γεωργαλάς */
+/* Παράθυρο «Σχετικά» και υπογραφή στον οδηγό. */
+.about {
+  width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 0;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-l);
+  background: var(--surface); color: var(--ink); box-shadow: var(--shadow);
+}
+.about::backdrop { background: rgba(10, 18, 32, 0.45); }
+.about-inner { padding: 22px 24px 20px; display: grid; gap: 14px; font-size: 14.5px; }
+.about-head { display: flex; align-items: center; gap: 14px; }
+.about-head .brand-mark { width: 56px; height: 56px; border-radius: 12px; }
+.about-head h2 { font-size: 17px; font-weight: 700; }
+.about-section h3 { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+.about-name { font-weight: 700; font-size: 15.5px; }
+.about-section ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 2px; }
+.about a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.about a:hover { text-decoration: underline; }
+.about-actions { display: flex; justify-content: flex-end; }
+.ref-credit { margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--line); }

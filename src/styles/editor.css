@@ -1,0 +1,133 @@
+/* SPDX-License-Identifier: MIT
+   Copyright (c) 2026 Αθανάσιος-Αντώνιος Γεωργαλάς */
+/* Επεξεργαστής κώδικα. Η textarea και τα επίπεδα χρωματισμού/σημάνσεων
+   πρέπει να έχουν ακριβώς την ίδια γραμματοσειρά, ύψος γραμμής και περιθώρια. */
+.editor-host { position: relative; flex: 1; min-height: 0; }
+.editor {
+  --pad-y: 12px;
+  --pad-x: 16px;
+  position: absolute; inset: 0; display: flex;
+  background: var(--code-bg);
+  font-family: var(--font-code); font-size: var(--code-size); line-height: var(--code-lh);
+  font-variant-ligatures: none;
+}
+
+.gutter {
+  position: relative; flex: none; overflow: hidden; cursor: pointer; user-select: none;
+  width: calc(var(--gutter-chars, 2) * 0.62em + 34px);
+  background: var(--surface-2); border-right: 1px solid var(--line);
+}
+.gutter-inner { padding-top: var(--pad-y); will-change: transform; }
+.ln {
+  position: relative; height: var(--code-lh); padding: 0 10px 0 18px; text-align: right;
+  color: var(--muted); font-size: .82em; font-variant-numeric: tabular-nums;
+}
+.ln::before {
+  content: ""; position: absolute; left: 6px; top: 50%; width: 9px; height: 9px; margin-top: -4.5px;
+  border-radius: 50%; background: transparent;
+}
+.ln:hover::before { background: var(--line-strong); }
+.ln.has-bp::before { background: var(--err); box-shadow: 0 0 0 2px var(--err-soft); }
+.ln.has-error { color: var(--err); font-weight: 700; }
+.ln.has-warning { color: var(--warn); font-weight: 700; }
+.ln.is-next { color: var(--ink); font-weight: 700; background: var(--marker-band); }
+.ln.is-next::after {
+  content: ""; position: absolute; right: 1px; top: 50%; margin-top: -5px;
+  border: 5px solid transparent; border-left: 6px solid var(--ink); border-right: 0;
+}
+.ln.is-last { color: var(--ink-2); }
+
+.code-area { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+.layer { position: absolute; top: 0; left: 0; margin: 0; pointer-events: none; will-change: transform; }
+.layer-code {
+  padding: var(--pad-y) var(--pad-x); white-space: pre; font: inherit; color: var(--ink);
+  tab-size: 2; min-width: 100%;
+}
+.layer-code .probe { position: absolute; visibility: hidden; }
+.layer-marks { width: 0; height: 0; }
+
+.code-input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  margin: 0; padding: var(--pad-y) var(--pad-x); border: 0; outline: none; resize: none;
+  background: transparent; color: transparent; caret-color: var(--ink);
+  font: inherit; line-height: inherit; letter-spacing: inherit;
+  white-space: pre; overflow: auto; tab-size: 2;
+  -webkit-text-fill-color: transparent;
+}
+.code-input::selection { background: var(--selection); }
+
+/* Χρώματα σύνταξης */
+.tk-kw { color: var(--c-kw); font-weight: 700; }
+.tk-type { color: var(--c-type); font-weight: 700; }
+.tk-opword { color: var(--c-kw); font-weight: 700; }
+.tk-str { color: var(--c-str); }
+.tk-num { color: var(--c-num); }
+.tk-bool { color: var(--c-bool); font-weight: 700; }
+.tk-builtin { color: var(--c-builtin); }
+.tk-comment { color: var(--c-comment); font-style: italic; }
+.tk-assign { color: var(--c-assign); font-weight: 700; }
+.tk-op { color: var(--c-op); }
+
+/* Σημάνσεις: τρέχουσα γραμμή (μαρκαδόρος), προηγούμενη, λάθη */
+.band { position: absolute; left: 0; width: 6000px; }
+.band-next { background: var(--marker-band); box-shadow: inset 3px 0 0 var(--marker); }
+.band-last { background: var(--accent-soft); opacity: .55; }
+.squiggle {
+  position: absolute; height: 3px;
+  background-image: linear-gradient(135deg, transparent 0 35%, currentColor 35% 65%, transparent 65%),
+                    linear-gradient(45deg, transparent 0 35%, currentColor 35% 65%, transparent 65%);
+  background-size: 6px 3px; background-repeat: repeat-x;
+}
+.squiggle-error { color: var(--err); }
+.squiggle-warning { color: var(--warn); }
+.inline-msg {
+  position: absolute; display: flex; align-items: center; white-space: nowrap;
+  font: 500 12px var(--font-ui); padding: 0 8px; opacity: .9;
+}
+.inline-msg.is-error { color: var(--err); }
+.inline-msg.is-warning { color: var(--warn); }
+.inline-msg::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 7px; }
+
+/* Αυτόματη συμπλήρωση: η λίστα βρίσκεται στο <body> (position: fixed), ώστε να μην
+   κόβεται από το πλαίσιο του επεξεργαστή. Θέση και μέγιστο ύψος ορίζονται από το
+   autocomplete.js μέσα στην ορατή περιοχή της οθόνης. */
+.ac-popup {
+  position: fixed; z-index: 60; overflow-y: auto; padding: 4px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px;
+  box-shadow: var(--shadow); font-family: var(--font-ui); color: var(--ink);
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+}
+.ac-item {
+  display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline;
+  padding: 6px 8px; border-radius: 7px; cursor: pointer;
+}
+.ac-item[aria-selected="true"] { background: var(--accent-soft); }
+@media (pointer: coarse) {
+  .ac-item { min-height: 44px; padding: 8px 10px; }
+}
+.ac-kind {
+  grid-row: span 2; align-self: start; margin-top: 1px;
+  font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+  background: var(--surface-2); color: var(--muted); border: 1px solid var(--line);
+}
+.kind-snippet .ac-kind { color: var(--accent); border-color: transparent; background: var(--accent-soft); }
+.kind-var .ac-kind, .kind-array .ac-kind { color: var(--t-int); }
+.kind-const .ac-kind { color: var(--t-real); }
+.kind-func .ac-kind, .kind-proc .ac-kind, .kind-builtin .ac-kind { color: var(--c-builtin); }
+.ac-label { font-family: var(--font-code); font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-label b { color: var(--accent); }
+.ac-detail { font-size: 12px; color: var(--muted); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Μπάρα συμβόλων (χρήσιμη ιδιαίτερα στο κινητό) */
+.symbol-bar {
+  display: flex; gap: 4px; padding: 6px 8px; overflow-x: auto; flex: none;
+  border-top: 1px solid var(--line); background: var(--surface-2); scrollbar-width: thin;
+}
+.sym {
+  flex: none; min-width: 34px; height: 32px; padding: 0 8px;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--surface);
+  font: 600 14px var(--font-code); cursor: pointer; color: var(--ink);
+}
+.sym:hover { border-color: var(--line-strong); }
+.sym:active { background: var(--accent-soft); }
+.sym-wide { font-family: var(--font-ui); font-size: 13px; }
