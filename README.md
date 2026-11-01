@@ -75,6 +75,8 @@ location /apps/glossa-lab/ {
 
 ```
 src/
+  main.js           Σημείο εκκίνησης της εφαρμογής
+  index.html        Πρότυπο σελίδας (το build το ενσωματώνει)
   brand.js          Ταυτότητα: όνομα, έκδοση, δημιουργός, σύνδεσμοι
   ui/brand-mark.js  Το εικονίδιο (παράγεται από το tools/brand)
   core/             Οι γλώσσες. Καμία εξάρτηση από DOM, τρέχει και σε Node.
@@ -102,6 +104,7 @@ src/
     runner.js       Ελεγκτής εκτέλεσης (εκτέλεση, βήμα, πάνω από, έξοδος, αυτόματα)
     dialect-switch.js, symbol-bar.js, workspace-store.js   Διακόπτης γλώσσας, σύμβολα, πρόχειρα
     app.js          Σύνδεση των παραπάνω
+  ui/dom.js, icons.js, storage.js, tabs.js, theme.js   Βοηθητικά της διεπαφής: DOM, εικονίδια, localStorage, καρτέλες, θέμα
   ui/file-io.js     Άνοιγμα και αποθήκευση αρχείων στον υπολογιστή
   styles/           tokens.css (χρώματα, θέματα), fonts, base, layout, editor, panels, about
   fonts/            Γραμματοσειρές (woff2, ελληνικά και λατινικά) και οι άδειές τους
@@ -110,10 +113,13 @@ test/
   examples.test.mjs     Κάθε παράδειγμα με ρητή είσοδο και αναμενόμενη έξοδο
   diagnostics.test.mjs  Τυπικά λάθη μαθητών και ο κωδικός που πρέπει να δίνουν
   pseudo.test.mjs       Ψευδογλώσσα και κανόνες της θεωρίας για τις δύο γλώσσες
+  conformance.test.mjs  Συμμόρφωση με τη θεωρία: τύποι, παράμετροι, υποπρογράμματα, αναδρομή, θέματα τύπου Πανελλαδικών
+  helpers.mjs           Κοινά εργαλεία των ελέγχων (runProgram, program)
   ui.test.mjs           Η διεπαφή πάνω στο τελικό αρχείο (jsdom)
 docs/brand/             Λογότυπα, εικονίδιο, εικόνα κοινοποίησης
 tools/brand/            Γεννήτρια των στοιχείων ταυτότητας (Python)
 tools/build/seo.mjs     Ετικέτες SEO, δομημένα δεδομένα, manifest, noscript
+CHANGELOG.md, CONTRIBUTING.md, LICENSE   Ιστορικό αλλαγών, οδηγός συνεισφοράς, άδεια
 build.mjs               Παράγει τον φάκελο dist/ για τον server
 ```
 
