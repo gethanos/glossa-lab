@@ -501,6 +501,9 @@ export class Interpreter {
    */
   store(ref, value, node, { lenient = false } = {}) {
     const cell = ref.cell;
+    if (cell.kind === 'const') {
+      throw new GlossaError('R_ASSIGN_CONSTANT', where(node), { name: cell.name });
+    }
     let v = value;
     if (!cell.dynamic) {
       if (!assignable(cell.type, value.t, { strict: !lenient })) {

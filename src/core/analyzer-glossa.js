@@ -8,6 +8,7 @@ import { GlossaError, warning } from './errors.js';
 import { closest } from './suggest.js';
 import { builtinsFor } from './builtins.js';
 import { int, real, str, bool, isNumericType } from './values.js';
+import { MAX_FIXED_ARRAY_ELEMENTS } from './arrays.js';
 
 const BUILTINS = builtinsFor('glossa');
 const BUILTIN_NAMES = new Set(Object.keys(BUILTINS));
@@ -91,11 +92,23 @@ class Analyzer {
           return val.v;
         });
       }
+      const total = sizes ? sizes.reduce((a, b) => a * b, 1) : 1;
+      if (!Number.isSafeInteger(total) || total > MAX_FIXED_ARRAY_ELEMENTS) {
+        this.error('M_ARRAY_TOO_LARGE', v, { name: v.name, max: MAX_FIXED_ARRAY_ELEMENTS });
+        sizes = sizes.map(() => 1);
+      }
       scope.set(v.norm, symbol({ name: v.name, norm: v.norm, kind: 'var', type: v.type, dims: sizes, line: v.line, col: v.col }));
     }
 
     if (unit.params) {
+      const seenParams = new Map();
       for (const p of unit.params) {
+        const first = seenParams.get(p.norm);
+        if (first) {
+          this.error('M_REDECLARED', p, { name: p.name, firstLine: first.line });
+          continue;
+        }
+        seenParams.set(p.norm, p);
         const sym = scope.get(p.norm);
         if (!sym || sym.kind !== 'var') {
           this.error('M_PARAM_UNDECLARED', p, { name: p.name, sub: unit.name });
@@ -110,6 +123,8 @@ class Analyzer {
 
     if (ctx.isFunction && !ctx.resultAssigned) {
       this.error('M_FUNCTION_NO_RESULT', { line: unit.line, col: unit.col, length: unit.name.length }, { name: unit.name });
+    } else if (ctx.isFunction && !assignsOnEveryPath(unit.body, unit.norm)) {
+      this.warnings.push(warning('W_FUNCTION_RESULT_PATH', { line: unit.line, col: unit.col, length: unit.name.length }, { name: unit.name }));
     }
     this.usageWarnings(scope);
   }
@@ -510,9 +525,12 @@ class Analyzer {
     const subScope = this.declaredScope(sub);
     node.args.forEach((arg, i) => {
       const param = subScope.get(sub.params[i].norm);
-      const argSym = (arg.type === 'Var') ? ctx.scope.get(arg.norm) : null;
-      const argIsArray = Boolean(argSym && argSym.dims);
+      const argSym = (arg.type === 'Var' || arg.type === 'Index') ? ctx.scope.get(arg.norm) : null;
+      const argIsArray = Boolean(argSym && argSym.dims && arg.type === 'Var');
       const t = this.expr(arg, ctx, true);
+      if (!isFunction && argSym && argSym.kind === 'const') {
+        this.error('M_ASSIGN_CONSTANT', arg, { name: arg.name });
+      }
       if (!param) return;
       if (Boolean(param.dims) !== argIsArray) {
         this.error('M_ARG_KIND', arg, { name: sub.name, param: param.name, expectArray: Boolean(param.dims) });
@@ -533,6 +551,21 @@ class Analyzer {
     for (const v of sub.vars) map.set(v.norm, { name: v.name, type: v.type, dims: v.dims });
     return map;
   }
+}
+
+/** Παίρνει η συνάρτηση τιμή σε κάθε διαδρομή; Τα ΟΣΟ και ΓΙΑ μπορεί να μην εκτελεστούν. */
+function assignsOnEveryPath(stmts, functionNorm) {
+  for (const stmt of stmts) {
+    if (stmt.type === 'Assign' && stmt.target.norm === functionNorm) return true;
+    if (stmt.type === 'If' && stmt.elseBody
+      && stmt.branches.every((b) => assignsOnEveryPath(b.body, functionNorm))
+      && assignsOnEveryPath(stmt.elseBody, functionNorm)) return true;
+    if (stmt.type === 'Select' && stmt.defaultBody
+      && stmt.cases.every((c) => assignsOnEveryPath(c.body, functionNorm))
+      && assignsOnEveryPath(stmt.defaultBody, functionNorm)) return true;
+    if (stmt.type === 'Repeat' && assignsOnEveryPath(stmt.body, functionNorm)) return true;
+  }
+  return false;
 }
 
 function symbol(fields) {
