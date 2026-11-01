@@ -92,7 +92,7 @@ test('αλφαριθμητική σύγκριση: μόνο τα κεφαλαί�
 test('αλφαριθμητική σύγκριση: δέχεται ακριβώς τα 24 κεφαλαία ελληνικά γράμματα', () => {
   const alphabet = String.fromCodePoint(
     ...Array.from({ length: 17 }, (_, i) => 0x0391 + i),
-    ...Array.from({ length: 6 }, (_, i) => 0x03a3 + i),
+    ...Array.from({ length: 7 }, (_, i) => 0x03a3 + i),
   );
   const valid = run(`Αν "${alphabet}" = "${alphabet}" τότε
   Εμφάνισε "ναι"
