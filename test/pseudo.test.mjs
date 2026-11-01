@@ -79,6 +79,66 @@ test('Κάλεσε: αντιστοίχιση σε Δεδομένα και Απο
   assert.equal(run('Κάλεσε Άγνωστος(1)').errors[0], 'P_UNKNOWN_ALGORITHM');
 });
 
+test('αλφαριθμητική σύγκριση: μόνο τα κεφαλαία ελληνικά δεν προειδοποιούνται', () => {
+  const valid = run(`Αν "ΑΒΓ" < "ΑΒΔ" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+  assert.deepEqual(valid.output, ['ναι']);
+  assert.ok(!valid.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+});
+
+test('αλφαριθμητική σύγκριση: πεζά, τονισμένα και λατινικά δίνουν warning χωρίς αλλαγή εκτέλεσης', () => {
+  for (const [left, right] of [['ΑβΓ', 'ΑΒΓ'], ['ΆΒΓ', 'ΑΒΓ'], ['ABC', 'ABC']]) {
+    const r = run(`Αν "${left}" = "${right}" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+    assert.ok(r.warnings.includes('W_PSEUDO_STRING_ALPHABET'), `${left}/${right}`);
+    assert.equal(r.warnings.filter((code) => code === 'W_PSEUDO_STRING_ALPHABET').length, 1);
+    assert.equal(r.errors.length, 0);
+    assert.equal(r.runtime, null);
+    assert.deepEqual(r.output, [left === right ? 'ναι' : 'όχι']);
+  }
+});
+
+test('πεζά, τονισμένα και λατινικά κείμενα μπορούν να ανατεθούν χωρίς warning', () => {
+  const r = run(`s ← "αβγ"
+t ← "Άλφα"
+u ← "abc"
+Εμφάνισε s, t, u`);
+  assert.deepEqual(r.output, ['αβγ Άλφα abc']);
+  assert.ok(!r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+});
+
+test('warning αλφαβήτου εμφανίζεται στη σύγκριση μεταβλητών με γνωστές τιμές', () => {
+  const r = run(`s ← "abc"
+Αν s = "ABC" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+  assert.ok(r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['όχι']);
+});
+
+test('Επίλεξε παραμένει διαθέσιμο και προειδοποιεί για την ύλη της Β΄ Λυκείου', () => {
+  const r = run(`Διάβασε χ
+Επίλεξε χ
+  Περίπτωση 1
+    Εμφάνισε "ένα"
+  Περίπτωση 2
+    Εμφάνισε "δύο"
+  Περίπτωση αλλιώς
+    Εμφάνισε "άλλο"
+Τέλος_επιλογών`, ['2']);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.warnings.includes('P_OUT_OF_CURRICULUM'));
+  assert.deepEqual(r.output, ['δύο']);
+});
+
 test('αποτέλεσμα που δεν πήρε τιμή', () => {
   const sub = '\nΑλγόριθμος Θετικό\nΔεδομένα // x //\nΑν x > 0 τότε y ← x\nΑποτελέσματα // y //\nΤέλος Θετικό';
   assert.equal(runProgram(`${A('Κάλεσε Θετικό(-1, z)\nΕμφάνισε z')}${sub}`, [], 'pseudo').runtime.code, 'R_RESULT_UNSET');

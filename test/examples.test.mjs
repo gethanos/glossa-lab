@@ -31,7 +31,7 @@ const PSEUDO = {
   'p-average': { inputs: ['8, 12, 4', '3'], output: ['μο = 8'] },
   'p-grade': { inputs: ['17,5'], output: ['Πολύ καλά'] },
   'p-euclid': { inputs: ['48', '18'], output: ['Μ.Κ.Δ.: 6'] },
-  'p-select': { inputs: ['6'], output: ['Σαββατοκύριακο'] },
+  'p-select': { inputs: ['6'], output: ['Σαββατοκύριακο'], warnings: ['P_OUT_OF_CURRICULUM'] },
   'p-validate': {
     inputs: ['0', '150', '30'],
     output: ['Δώσε ηλικία (1-120)', 'Δώσε ηλικία (1-120)', 'Δώσε ηλικία (1-120)', 'Έγκυρη ηλικία: 30'],
@@ -54,7 +54,7 @@ for (const [dialect, cases] of [['glossa', GLOSSA], ['pseudo', PSEUDO]]) {
       const expected = cases[ex.id];
       const r = runProgram(ex.code, expected.inputs, dialect);
       assert.deepEqual(r.errors, [], 'δεν πρέπει να υπάρχουν λάθη μεταγλώττισης');
-      assert.deepEqual(r.warnings, [], 'δεν πρέπει να υπάρχουν προειδοποιήσεις');
+      assert.deepEqual(r.warnings, expected.warnings || [], 'οι προειδοποιήσεις πρέπει να είναι οι αναμενόμενες');
       assert.deepEqual(r.output, expected.output);
       if (expected.runtime) {
         assert.equal(r.runtime?.code, expected.runtime);
