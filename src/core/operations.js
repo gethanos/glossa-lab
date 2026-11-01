@@ -21,11 +21,31 @@ export function expectType(ok, op, values, rule, node, dialect) {
   });
 }
 
+const GREEK_LETTER = /[\u0370-\u03ff\u1f00-\u1fff]/;
+
+/**
+ * Κλειδί σύγκρισης ελληνικών κειμένων (ΓΛΩΣΣΑ): χωρίς πεζά/κεφαλαία, τόνους και διαλυτικά,
+ * με το τελικό ς ίδιο με το σ. Οι υπόλοιποι χαρακτήρες μένουν αμετάβλητοι. Οι τιμές των
+ * μεταβλητών δεν αλλάζουν· το κλειδί χρησιμοποιείται μόνο στη σύγκριση.
+ */
+export function greekKey(text) {
+  let out = '';
+  for (const ch of text) {
+    if (!GREEK_LETTER.test(ch)) { out += ch; continue; }
+    out += ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/ς/g, 'σ');
+  }
+  return out;
+}
+
 export function compare(op, a, b, node, dialect) {
   const numericPair = isNumericType(a.t) && isNumericType(b.t);
   expectType(numericPair || a.t === b.t, op, [a, b], 'Μια σύγκριση γίνεται ανάμεσα σε τιμές του ίδιου είδους.', node, dialect);
-  const x = a.v;
-  const y = b.v;
+  let x = a.v;
+  let y = b.v;
+  if (dialect.id === 'glossa' && a.t === 'str' && b.t === 'str') {
+    x = greekKey(x);
+    y = greekKey(y);
+  }
   switch (op) {
     case '=': return bool(x === y);
     case '<>': return bool(x !== y);
