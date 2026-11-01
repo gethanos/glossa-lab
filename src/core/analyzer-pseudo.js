@@ -23,6 +23,7 @@ class PseudoAnalyzer {
     this.file = file;
     this.errors = [];
     this.warnings = [];
+    this.reportedWarnings = new Set();
     this.units = new Map();
     this.subs = new Map();
   }
@@ -49,7 +50,7 @@ class PseudoAnalyzer {
   // ---------- Αλγόριθμος ----------
   analyzeAlgorithm(alg) {
     const scope = new Map();
-    const ctx = { alg, scope, counters: [], wholeArrayRefs: [] };
+    const ctx = { alg, scope, counters: [], wholeArrayRefs: [], stringValues: new Map() };
     this.units.set(alg, { scope });
 
     for (const p of alg.inputs) Object.assign(this.symbol(ctx, p), { isInput: true, written: true });
@@ -140,31 +141,35 @@ class PseudoAnalyzer {
       case 'Assign':
         this.expr(s.expr, ctx);
         this.write(ctx, s.target);
+        if (s.target.type === 'Var') {
+          const value = staticString(s.expr, ctx);
+          if (value === null) ctx.stringValues.delete(s.target.norm);
+          else ctx.stringValues.set(s.target.norm, value);
+        }
         break;
       case 'Read':
-        s.targets.forEach((t) => this.write(ctx, t));
+        s.targets.forEach((t) => {
+          this.write(ctx, t);
+          if (t.type === 'Var') ctx.stringValues.delete(t.norm);
+        });
         break;
       case 'Write':
         s.items.forEach((e) => this.expr(e, ctx));
         break;
       case 'If':
-        s.branches.forEach((b) => { this.condition(b.cond, ctx); this.block(b.body, ctx); });
-        if (s.elseBody) this.block(s.elseBody, ctx);
+        this.analyzeIf(s, ctx);
         break;
       case 'Select':
         this.expr(s.expr, ctx);
-        for (const c of s.cases) {
-          c.tests.forEach((t) => (t.kind === 'range' ? [t.lo, t.hi] : [t.expr]).forEach((e) => this.expr(e, ctx)));
-          this.block(c.body, ctx);
-        }
-        if (s.defaultBody) this.block(s.defaultBody, ctx);
+        this.analyzeSelect(s, ctx);
+        this.warnOnce('P_OUT_OF_CURRICULUM', { line: s.line, col: 1, length: 8 }, {});
         break;
       case 'While':
         this.condition(s.cond, ctx);
-        this.block(s.body, ctx);
+        this.analyzeLoop(s.body, ctx);
         break;
       case 'Repeat':
-        this.block(s.body, ctx);
+        this.analyzeLoop(s.body, ctx);
         this.condition(s.cond, ctx);
         break;
       case 'For':
@@ -174,8 +179,9 @@ class PseudoAnalyzer {
         }
         this.write(ctx, s.counter);
         this.read(ctx, s.counter);
+        if (s.counter.type === 'Var') ctx.stringValues.delete(s.counter.norm);
         ctx.counters.push({ norm: s.counter.norm, line: s.line });
-        this.block(s.body, ctx);
+        this.analyzeLoop(s.body, ctx);
         ctx.counters.pop();
         break;
       case 'Call':
@@ -184,6 +190,51 @@ class PseudoAnalyzer {
       default:
         break;
     }
+  }
+
+  analyzeIf(s, ctx) {
+    const before = new Map(ctx.stringValues);
+    const paths = [];
+    for (const branch of s.branches) {
+      ctx.stringValues = new Map(before);
+      this.condition(branch.cond, ctx);
+      this.block(branch.body, ctx);
+      paths.push(ctx.stringValues);
+    }
+    if (s.elseBody) {
+      ctx.stringValues = new Map(before);
+      this.block(s.elseBody, ctx);
+      paths.push(ctx.stringValues);
+    } else {
+      paths.push(before);
+    }
+    ctx.stringValues = commonStringValues(paths);
+  }
+
+  analyzeSelect(s, ctx) {
+    const before = new Map(ctx.stringValues);
+    const paths = [];
+    for (const c of s.cases) {
+      ctx.stringValues = new Map(before);
+      c.tests.forEach((t) => (t.kind === 'range' ? [t.lo, t.hi] : [t.expr]).forEach((e) => this.expr(e, ctx)));
+      this.block(c.body, ctx);
+      paths.push(ctx.stringValues);
+    }
+    if (s.defaultBody) {
+      ctx.stringValues = new Map(before);
+      this.block(s.defaultBody, ctx);
+      paths.push(ctx.stringValues);
+    } else {
+      paths.push(before);
+    }
+    ctx.stringValues = commonStringValues(paths);
+  }
+
+  analyzeLoop(body, ctx) {
+    const before = new Map(ctx.stringValues);
+    ctx.stringValues = new Map(before);
+    this.block(body, ctx);
+    ctx.stringValues = commonStringValues([before, ctx.stringValues]);
   }
 
   /** Η θεωρία της ψευδογλώσσας: μια συνθήκη περιέχει τουλάχιστον έναν τελεστή σύγκρισης. */
@@ -227,6 +278,7 @@ class PseudoAnalyzer {
         return;
       }
       this.write(ctx, arg, true);
+      if (arg.type === 'Var') ctx.stringValues.delete(arg.norm);
     });
   }
 
@@ -244,6 +296,7 @@ class PseudoAnalyzer {
         this.expr(e.operand, ctx);
         break;
       case 'Binary':
+        if (COMPARISON.has(e.op)) this.checkStringAlphabet(e, ctx);
         this.expr(e.left, ctx);
         this.expr(e.right, ctx);
         break;
@@ -253,6 +306,20 @@ class PseudoAnalyzer {
       default:
         break;
     }
+  }
+
+  checkStringAlphabet(e, ctx) {
+    const values = [staticString(e.left, ctx), staticString(e.right, ctx)].filter((v) => v !== null);
+    if (values.some((value) => [...value].some((ch) => !isUpperGreekLetter(ch)))) {
+      this.warnOnce('W_PSEUDO_STRING_ALPHABET', e, {});
+    }
+  }
+
+  warnOnce(code, where, params) {
+    const key = `${code}:${where.line}:${where.col || 1}`;
+    if (this.reportedWarnings.has(key)) return;
+    this.reportedWarnings.add(key);
+    this.warnings.push(warning(code, where, params));
   }
 
   functionCall(e, ctx) {
@@ -273,6 +340,26 @@ class PseudoAnalyzer {
       isVariable: ctx.scope.has(e.norm),
     });
   }
+}
+
+function staticString(expr, ctx) {
+  if (expr.type === 'Str') return expr.value;
+  if (expr.type === 'Group') return staticString(expr.expr, ctx);
+  if (expr.type === 'Var') return ctx.stringValues.get(expr.norm) ?? null;
+  return null;
+}
+
+function isUpperGreekLetter(ch) {
+  return /^[\u0391-\u03A1\u03A3-\u03A9]$/u.test(ch);
+}
+
+function commonStringValues(paths) {
+  if (!paths.length) return new Map();
+  const common = new Map();
+  for (const [name, value] of paths[0]) {
+    if (paths.every((path) => path.get(name) === value)) common.set(name, value);
+  }
+  return common;
 }
 
 function hasComparison(e) {

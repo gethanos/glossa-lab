@@ -32,6 +32,7 @@ class Analyzer {
     this.warnings = [];
     this.units = new Map();
     this.subs = new Map();
+    this.paramWrites = new Map();
   }
 
   run() {
@@ -44,9 +45,54 @@ class Analyzer {
         this.subs.set(sub.norm, sub);
       }
     }
+    this.inferWrittenParameters();
     this.analyzeUnit(this.program);
     for (const sub of this.subs.values()) this.analyzeUnit(sub);
     return { errors: this.errors, warnings: this.warnings, units: this.units, subs: this.subs };
+  }
+
+  inferWrittenParameters() {
+    for (const sub of this.subs.values()) this.paramWrites.set(sub, new Set());
+    let changed;
+    do {
+      changed = false;
+      for (const sub of this.subs.values()) {
+        const params = new Set(sub.params.map((p) => p.norm));
+        const written = this.paramWrites.get(sub);
+        const mark = (node) => {
+          if (node && params.has(node.norm) && !written.has(node.norm)) {
+            written.add(node.norm);
+            changed = true;
+          }
+        };
+        const visit = (stmts) => {
+          for (const stmt of stmts) {
+            if (stmt.type === 'Assign') mark(stmt.target);
+            else if (stmt.type === 'Read') stmt.targets.forEach(mark);
+            else if (stmt.type === 'For') {
+              mark(stmt.counter);
+              visit(stmt.body);
+            } else if (stmt.type === 'If') {
+              stmt.branches.forEach((branch) => visit(branch.body));
+              if (stmt.elseBody) visit(stmt.elseBody);
+            } else if (stmt.type === 'Select') {
+              stmt.cases.forEach((c) => visit(c.body));
+              if (stmt.defaultBody) visit(stmt.defaultBody);
+            } else if (stmt.type === 'While' || stmt.type === 'Repeat') visit(stmt.body);
+            else if (stmt.type === 'Call') {
+              const target = this.subs.get(stmt.norm);
+              const targetWrites = target && this.paramWrites.get(target);
+              if (target && target.type === 'Procedure' && targetWrites) {
+                target.params.forEach((p, i) => {
+                  if (targetWrites.has(p.norm)) mark(stmt.args[i]);
+                });
+              }
+            }
+          }
+        };
+        visit(sub.body);
+      }
+    } while (changed);
   }
 
   error(code, node, params) {
@@ -528,8 +574,14 @@ class Analyzer {
       const argSym = (arg.type === 'Var' || arg.type === 'Index') ? ctx.scope.get(arg.norm) : null;
       const argIsArray = Boolean(argSym && argSym.dims && arg.type === 'Var');
       const t = this.expr(arg, ctx, true);
-      if (!isFunction && argSym && argSym.kind === 'const') {
+      const needsVariable = !isFunction && this.paramWrites.get(sub)?.has(sub.params[i].norm);
+      if (needsVariable && arg.type !== 'Var' && arg.type !== 'Index') {
+        this.error('M_ARG_OUTPUT', arg, { name: sub.name, param: sub.params[i].name });
+        return;
+      }
+      if (needsVariable && argSym && argSym.kind === 'const') {
         this.error('M_ASSIGN_CONSTANT', arg, { name: arg.name });
+        return;
       }
       if (!param) return;
       if (Boolean(param.dims) !== argIsArray) {
@@ -540,7 +592,7 @@ class Analyzer {
         this.error('M_ARG_TYPE', arg, { name: sub.name, param: param.name, expected: label(param.type), got: label(t) });
       }
       // Οι παράμετροι διαδικασίας επιστρέφουν τιμή στον καλούντα.
-      if (!isFunction && argSym && argSym.kind === 'var') argSym.written = true;
+      if (needsVariable && argSym && argSym.kind === 'var') argSym.written = true;
     });
     return isFunction ? sub.returnType : null;
   }

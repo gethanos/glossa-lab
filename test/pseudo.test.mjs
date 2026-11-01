@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runProgram, program as H } from './helpers.mjs';
 import { detectDialect } from '../src/core/dialects.js';
+import { compile } from '../src/core/compiler.js';
+import { describe } from '../src/core/errors.js';
 
 const A = (body, name = 'Τεστ') => `Αλγόριθμος ${name}\n${body}\nΤέλος ${name}`;
 const run = (body, inputs = []) => runProgram(A(body), inputs, 'pseudo');
@@ -77,6 +79,287 @@ test('Κάλεσε: αντιστοίχιση σε Δεδομένα και Απο
   assert.equal(runProgram(`${A('Κάλεσε Διπλάσιο(21, 3 + 1)')}${sub}`, [], 'pseudo').errors[0], 'P_OUTPUT_ARG');
   assert.equal(runProgram(`${A('z ← Διπλάσιο(21)\nΕμφάνισε z')}${sub}`, [], 'pseudo').errors[0], 'P_ALGORITHM_IN_EXPRESSION');
   assert.equal(run('Κάλεσε Άγνωστος(1)').errors[0], 'P_UNKNOWN_ALGORITHM');
+});
+
+test('αλφαριθμητική σύγκριση: μόνο τα κεφαλαία ελληνικά δεν προειδοποιούνται', () => {
+  const valid = run(`Αν "ΑΒΓ" < "ΑΒΔ" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+  assert.deepEqual(valid.output, ['ναι']);
+  assert.ok(!valid.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+});
+
+test('αλφαριθμητική σύγκριση: δέχεται ακριβώς τα 24 κεφαλαία ελληνικά γράμματα', () => {
+  const alphabet = String.fromCodePoint(
+    ...Array.from({ length: 17 }, (_, i) => 0x0391 + i),
+    ...Array.from({ length: 7 }, (_, i) => 0x03a3 + i),
+  );
+  const valid = run(`Αν "${alphabet}" = "${alphabet}" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+  assert.deepEqual(valid.output, ['ναι']);
+  assert.ok(!valid.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+});
+
+test('αλφαριθμητική σύγκριση: U+03A2, Ϊ και Ϋ είναι εκτός του αλφαβήτου', () => {
+  for (const ch of ['\u03a2', 'Ϊ', 'Ϋ']) {
+    const r = run(`Αν "${ch}" = "${ch}" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+    assert.ok(r.warnings.includes('W_PSEUDO_STRING_ALPHABET'), `U+${ch.codePointAt(0).toString(16)}`);
+    assert.deepEqual(r.output, ['ναι']);
+  }
+});
+
+test('αλφαριθμητική σύγκριση: πεζά ελληνικά, λατινικά, ψηφία και στίξη είναι εκτός αλφαβήτου', () => {
+  for (const ch of ['α', 'ω', 'A', 'z', '0', '7', ' ', '.', ',', '-', '!']) {
+    const r = run(`Αν "${ch}" = "${ch}" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+    assert.ok(r.warnings.includes('W_PSEUDO_STRING_ALPHABET'), JSON.stringify(ch));
+    assert.deepEqual(r.output, ['ναι']);
+  }
+});
+
+test('αλφαριθμητική σύγκριση: πεζά, τονισμένα και λατινικά δίνουν warning χωρίς αλλαγή εκτέλεσης', () => {
+  for (const [left, right] of [['ΑβΓ', 'ΑΒΓ'], ['ΆΒΓ', 'ΑΒΓ'], ['ABC', 'ABC']]) {
+    const r = run(`Αν "${left}" = "${right}" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+    assert.ok(r.warnings.includes('W_PSEUDO_STRING_ALPHABET'), `${left}/${right}`);
+    assert.equal(r.warnings.filter((code) => code === 'W_PSEUDO_STRING_ALPHABET').length, 1);
+    assert.equal(r.errors.length, 0);
+    assert.equal(r.runtime, null);
+    assert.deepEqual(r.output, [left === right ? 'ναι' : 'όχι']);
+  }
+});
+
+test('πεζά, τονισμένα και λατινικά κείμενα μπορούν να ανατεθούν χωρίς warning', () => {
+  const r = run(`s ← "αβγ"
+t ← "Άλφα"
+u ← "abc"
+Εμφάνισε s, t, u`);
+  assert.deepEqual(r.output, ['αβγ Άλφα abc']);
+  assert.ok(!r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+});
+
+test('warning αλφαβήτου εμφανίζεται στη σύγκριση μεταβλητών με γνωστές τιμές', () => {
+  const r = run(`s ← "abc"
+Αν s = "ABC" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+  assert.ok(r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['όχι']);
+});
+
+test('warning αλφαβήτου δεν μπορεί να κρίνει τιμή μεταβλητής που διαβάζεται δυναμικά', () => {
+  const r = run(`Διάβασε s
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`, ['abc']);
+  assert.ok(!r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['όχι']);
+});
+
+test('Επίλεξε παραμένει διαθέσιμο και προειδοποιεί για την ύλη της Β΄ Λυκείου', () => {
+  const source = `Διάβασε χ
+Επίλεξε χ
+  Περίπτωση 1
+    Εμφάνισε "ένα"
+  Περίπτωση 2
+    Εμφάνισε "δύο"
+  Περίπτωση αλλιώς
+    Εμφάνισε "άλλο"
+Τέλος_επιλογών`;
+  const r = run(source, ['2']);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.warnings.includes('P_OUT_OF_CURRICULUM'));
+  assert.equal(r.runtime, null);
+  assert.deepEqual(r.output, ['δύο']);
+
+  const compiled = compile(A(source), 'pseudo');
+  const warning = compiled.warnings.find((item) => item.code === 'P_OUT_OF_CURRICULUM');
+  assert.ok(warning);
+  const message = describe(warning, 'pseudo');
+  assert.match(message.title, /Γ΄ Λυκείου/);
+  assert.match(message.explain, /Β΄ Λυκείου/);
+  assert.match(message.explain, /Γ΄ Λυκείου/);
+  assert.doesNotMatch(`${message.title} ${message.explain}`, /Το ΕΠΙΛΕΞΕ είναι εκτός ύλης για όλους/);
+});
+
+test('IF χωρίς ELSE: τροποποίηση μόνο σε έναν κλάδο δεν επιτρέπει στατικό ισχυρισμό', () => {
+  const r = run(`s ← "ΑΒΓ"
+Διάβασε x
+Αν x = 1 τότε
+  s ← "abc"
+Τέλος_αν
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "ίσες"
+αλλιώς
+  Εμφάνισε "διαφορετικές"
+Τέλος_αν`, ['0']);
+  assert.ok(!r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['ίσες']);
+});
+
+test('IF: η σύγκριση μέσα στον κλάδο βλέπει την αλλαγή, η σύγκριση μετά βλέπει συγχωνευμένη κατάσταση', () => {
+  const r = run(`s ← "ΑΒΓ"
+Διάβασε x
+Αν x = 1 τότε
+  s ← "abc"
+  Αν s = "ΑΒΓ" τότε
+    Εμφάνισε "εσωτερικά ίσες"
+  αλλιώς
+    Εμφάνισε "εσωτερικά διαφορετικές"
+  Τέλος_αν
+Τέλος_αν
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "εξωτερικά ίσες"
+αλλιώς
+  Εμφάνισε "εξωτερικά διαφορετικές"
+Τέλος_αν`, ['0']);
+  assert.equal(r.warnings.filter((code) => code === 'W_PSEUDO_STRING_ALPHABET').length, 1);
+  assert.deepEqual(r.output, ['εξωτερικά ίσες']);
+});
+
+test('IF με ELSE και ίδια στατική ανάθεση διατηρεί γνωστή τιμή και προειδοποιεί', () => {
+  const r = run(`Διάβασε x
+Αν x = 1 τότε
+  s ← "abc"
+αλλιώς
+  s ← "abc"
+Τέλος_αν
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "ίσες"
+αλλιώς
+  Εμφάνισε "διαφορετικές"
+Τέλος_αν`, ['0']);
+  assert.ok(r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['διαφορετικές']);
+});
+
+test('IF με διαφορετικές αναθέσεις δεν ισχυρίζεται στατική τιμή μετά τη σύγκλιση', () => {
+  const r = run(`Διάβασε x
+Αν x = 1 τότε
+  s ← "abc"
+αλλιώς
+  s ← "ΑΒΓ"
+Τέλος_αν
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "ίσες"
+αλλιώς
+  Εμφάνισε "διαφορετικές"
+Τέλος_αν`, ['0']);
+  assert.ok(!r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['ίσες']);
+});
+
+test('SELECT με διαφορετικές αναθέσεις δεν ισχυρίζεται στατική τιμή μετά τη σύγκλιση', () => {
+  const r = run(`Διάβασε x
+Επίλεξε x
+  Περίπτωση 1
+    s ← "abc"
+  Περίπτωση αλλιώς
+    s ← "ΑΒΓ"
+Τέλος_επιλογών
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "ίσες"
+αλλιώς
+  Εμφάνισε "διαφορετικές"
+Τέλος_αν`, ['0']);
+  assert.ok(!r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['ίσες']);
+});
+
+test('SELECT: κάθε case ξεκινά από την είσοδο και η συνέχεια βλέπει συγχωνευμένη κατάσταση', () => {
+  const r = run(`s ← "ΑΒΓ"
+Διάβασε x
+Επίλεξε x
+  Περίπτωση 1
+    s ← "abc"
+    Αν s = "ΑΒΓ" τότε
+      Εμφάνισε "case ίσες"
+    αλλιώς
+      Εμφάνισε "case διαφορετικές"
+    Τέλος_αν
+  Περίπτωση αλλιώς
+    s ← "ΑΒΓ"
+Τέλος_επιλογών
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "μετά ίσες"
+αλλιώς
+  Εμφάνισε "μετά διαφορετικές"
+Τέλος_αν`, ['0']);
+  assert.equal(r.warnings.filter((code) => code === 'W_PSEUDO_STRING_ALPHABET').length, 1);
+  assert.deepEqual(r.output, ['μετά ίσες']);
+});
+
+test('βρόχος μηδενικών επαναλήψεων δεν θεωρεί εγγυημένη την εσωτερική ανάθεση', () => {
+  const r = run(`s ← "ΑΒΓ"
+x ← 0
+Όσο x > 0 επανάλαβε
+  s ← "abc"
+Τέλος_επανάληψης
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "ίσες"
+αλλιώς
+  Εμφάνισε "διαφορετικές"
+Τέλος_αν`);
+  assert.ok(!r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['ίσες']);
+});
+
+test('βρόχος: το σώμα βλέπει την αλλαγή, η συνέχεια συγχωνεύει και μηδενικές επαναλήψεις', () => {
+  const r = run(`s ← "ΑΒΓ"
+x ← 0
+Όσο x > 0 επανάλαβε
+  s ← "abc"
+  Αν s = "ΑΒΓ" τότε
+    Εμφάνισε "μέσα ίσες"
+  αλλιώς
+    Εμφάνισε "μέσα διαφορετικές"
+  Τέλος_αν
+Τέλος_επανάληψης
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "μετά ίσες"
+αλλιώς
+  Εμφάνισε "μετά διαφορετικές"
+Τέλος_αν`);
+  assert.equal(r.warnings.filter((code) => code === 'W_PSEUDO_STRING_ALPHABET').length, 1);
+  assert.deepEqual(r.output, ['μετά ίσες']);
+});
+
+test('τιμή από Διάβασε παραμένει άγνωστη στατικά μετά από διακλάδωση και βρόχο', () => {
+  const r = run(`Διάβασε s
+Διάβασε x
+Αν x = 1 τότε
+  s ← "ΑΒΔ"
+Τέλος_αν
+Όσο x > 1 επανάλαβε
+  s ← "ΑΒΕ"
+  x ← x - 1
+Τέλος_επανάληψης
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "ίσες"
+αλλιώς
+  Εμφάνισε "διαφορετικές"
+Τέλος_αν`, ['xyz', '0']);
+  assert.ok(!r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['διαφορετικές']);
 });
 
 test('αποτέλεσμα που δεν πήρε τιμή', () => {
