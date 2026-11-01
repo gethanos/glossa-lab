@@ -193,7 +193,7 @@ class PseudoAnalyzer {
   }
 
   analyzeIf(s, ctx) {
-    const before = ctx.stringValues;
+    const before = new Map(ctx.stringValues);
     const paths = [];
     for (const branch of s.branches) {
       ctx.stringValues = new Map(before);
@@ -212,7 +212,7 @@ class PseudoAnalyzer {
   }
 
   analyzeSelect(s, ctx) {
-    const before = ctx.stringValues;
+    const before = new Map(ctx.stringValues);
     const paths = [];
     for (const c of s.cases) {
       ctx.stringValues = new Map(before);
@@ -231,7 +231,7 @@ class PseudoAnalyzer {
   }
 
   analyzeLoop(body, ctx) {
-    const before = ctx.stringValues;
+    const before = new Map(ctx.stringValues);
     ctx.stringValues = new Map(before);
     this.block(body, ctx);
     ctx.stringValues = commonStringValues([before, ctx.stringValues]);
