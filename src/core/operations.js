@@ -29,12 +29,15 @@ const GREEK_LETTER = /[\u0370-\u03ff\u1f00-\u1fff]/;
  * μεταβλητών δεν αλλάζουν· το κλειδί χρησιμοποιείται μόνο στη σύγκριση.
  */
 export function greekKey(text) {
+  const decomposed = text.normalize('NFD');
   let out = '';
-  for (const ch of text) {
-    if (!GREEK_LETTER.test(ch)) { out += ch; continue; }
-    out += ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/ς/g, 'σ');
+  let afterGreek = false;
+  for (const ch of decomposed) {
+    if (afterGreek && /[\u0300-\u036f]/.test(ch)) continue;
+    afterGreek = GREEK_LETTER.test(ch);
+    out += afterGreek ? ch.toLowerCase().replace(/ς/g, 'σ') : ch;
   }
-  return out;
+  return out.normalize('NFC');
 }
 
 export function compare(op, a, b, node, dialect) {

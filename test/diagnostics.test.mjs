@@ -161,3 +161,17 @@ test('ψευδογλώσσα: η σύγκριση κειμένων παραμέ�
   const r = runProgram('Αλγόριθμος Τ\nΑν "Α" = "α" τότε\n  Εμφάνισε 1\nαλλιώς\n  Εμφάνισε 0\nΤέλος_αν\nΤέλος Τ', [], 'pseudo');
   assert.deepEqual(r.output, ['0']);
 });
+
+test('ΓΛΩΣΣΑ: σύγκριση με συνδυαστικούς χαρακτήρες Unicode και μικτά κείμενα', () => {
+  const cmp = (expr) => runProgram(H(`b <- ${expr}\nΓΡΑΨΕ b`)).output[0];
+  assert.equal(cmp("'ε\u0301' = 'έ'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'έ' = 'Ε'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'ά' = 'α'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'ϊ' = 'ι'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'ΐ' = 'ι'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'e\u0301' = 'é'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'e\u0301' = 'e'"), 'ΨΕΥΔΗΣ');
+  assert.equal(cmp("'ΑΒ' = 'ΑΒa'"), 'ΨΕΥΔΗΣ');
+  assert.equal(cmp("'ΑΒa' = 'ΑΒA'"), 'ΨΕΥΔΗΣ');
+  assert.equal(cmp("'ΑΒ1' = 'ΑΒ1'"), 'ΑΛΗΘΗΣ');
+});
