@@ -89,6 +89,32 @@ test('αλφαριθμητική σύγκριση: μόνο τα κεφαλαί�
   assert.ok(!valid.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
 });
 
+test('αλφαριθμητική σύγκριση: δέχεται ακριβώς τα 24 κεφαλαία ελληνικά γράμματα', () => {
+  const alphabet = String.fromCodePoint(
+    ...Array.from({ length: 17 }, (_, i) => 0x0391 + i),
+    ...Array.from({ length: 6 }, (_, i) => 0x03a3 + i),
+  );
+  const valid = run(`Αν "${alphabet}" = "${alphabet}" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+  assert.deepEqual(valid.output, ['ναι']);
+  assert.ok(!valid.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+});
+
+test('αλφαριθμητική σύγκριση: U+03A2, Ϊ και Ϋ είναι εκτός του αλφαβήτου', () => {
+  for (const ch of ['\u03a2', 'Ϊ', 'Ϋ']) {
+    const r = run(`Αν "${ch}" = "${ch}" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`);
+    assert.ok(r.warnings.includes('W_PSEUDO_STRING_ALPHABET'), `U+${ch.codePointAt(0).toString(16)}`);
+    assert.deepEqual(r.output, ['ναι']);
+  }
+});
+
 test('αλφαριθμητική σύγκριση: πεζά, τονισμένα και λατινικά δίνουν warning χωρίς αλλαγή εκτέλεσης', () => {
   for (const [left, right] of [['ΑβΓ', 'ΑΒΓ'], ['ΆΒΓ', 'ΑΒΓ'], ['ABC', 'ABC']]) {
     const r = run(`Αν "${left}" = "${right}" τότε
@@ -121,6 +147,17 @@ test('warning αλφαβήτου εμφανίζεται στη σύγκριση 
   Εμφάνισε "όχι"
 Τέλος_αν`);
   assert.ok(r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
+  assert.deepEqual(r.output, ['όχι']);
+});
+
+test('warning αλφαβήτου δεν μπορεί να κρίνει τιμή μεταβλητής που διαβάζεται δυναμικά', () => {
+  const r = run(`Διάβασε s
+Αν s = "ΑΒΓ" τότε
+  Εμφάνισε "ναι"
+αλλιώς
+  Εμφάνισε "όχι"
+Τέλος_αν`, ['abc']);
+  assert.ok(!r.warnings.includes('W_PSEUDO_STRING_ALPHABET'));
   assert.deepEqual(r.output, ['όχι']);
 });
 

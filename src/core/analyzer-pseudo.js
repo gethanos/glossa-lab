@@ -350,7 +350,7 @@ function staticString(expr, ctx) {
 }
 
 function isUpperGreekLetter(ch) {
-  return /^[\u0391-\u03A9\u03AA\u03AB]$/u.test(ch);
+  return /^[\u0391-\u03A1\u03A3-\u03A9]$/u.test(ch);
 }
 
 function commonStringValues(paths) {
