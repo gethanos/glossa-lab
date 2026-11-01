@@ -7,11 +7,17 @@
 // Οι θέσεις αριθμούνται από το 1. Το κλειδί (key) μιας θέσης χρησιμοποιείται για
 // την επισήμανση αλλαγών στις προβολές.
 
+export const MAX_FIXED_ARRAY_ELEMENTS = 100_000;
+
 export class FixedArray {
   /** @param {number[]} dims μέγεθος κάθε διάστασης */
   constructor(dims) {
+    const size = dims.reduce((a, b) => a * b, 1);
+    if (!Number.isSafeInteger(size) || size < 1 || size > MAX_FIXED_ARRAY_ELEMENTS) {
+      throw new RangeError(`Ο πίνακας υπερβαίνει το όριο των ${MAX_FIXED_ARRAY_ELEMENTS} στοιχείων.`);
+    }
     this.dims = dims;
-    this.items = new Array(dims.reduce((a, b) => a * b, 1)).fill(null);
+    this.items = new Array(size).fill(null);
   }
 
   get rank() { return this.dims.length; }

@@ -113,3 +113,29 @@ test('ΕΠΙΛΕΞΕ με περιοχές και συγκρίσεις', () => {
 test('συνέχεια γραμμής με &', () => {
   assert.deepEqual(runProgram(H("ΓΡΑΨΕ 'a',\n& 'b'")).output, ['a b']);
 });
+
+const PROC_INC = 'ΔΙΑΔΙΚΑΣΙΑ Αύξησε(x)\nΜΕΤΑΒΛΗΤΕΣ\n  ΑΚΕΡΑΙΕΣ: x\nΑΡΧΗ\n  x <- x + 1\nΤΕΛΟΣ_ΔΙΑΔΙΚΑΣΙΑΣ';
+
+test('σταθερά ως πραγματική παράμετρος διαδικασίας απορρίπτεται', () => {
+  const src = `ΠΡΟΓΡΑΜΜΑ Π\nΣΤΑΘΕΡΕΣ\n  k = 5\nΑΡΧΗ\n  ΚΑΛΕΣΕ Αύξησε(k)\n  ΓΡΑΨΕ k\nΤΕΛΟΣ_ΠΡΟΓΡΑΜΜΑΤΟΣ\n${PROC_INC}`;
+  assert.equal(runProgram(src).errors[0], 'M_ASSIGN_CONSTANT');
+});
+
+test('διπλό όνομα τυπικής παραμέτρου απορρίπτεται', () => {
+  const src = 'ΠΡΟΓΡΑΜΜΑ Π\nΜΕΤΑΒΛΗΤΕΣ\n  ΑΚΕΡΑΙΕΣ: x, y\nΑΡΧΗ\n  x <- 1\n  y <- 2\n  ΚΑΛΕΣΕ Δ(x, y)\nΤΕΛΟΣ_ΠΡΟΓΡΑΜΜΑΤΟΣ\nΔΙΑΔΙΚΑΣΙΑ Δ(a, a)\nΜΕΤΑΒΛΗΤΕΣ\n  ΑΚΕΡΑΙΕΣ: a\nΑΡΧΗ\n  a <- a + 1\nΤΕΛΟΣ_ΔΙΑΔΙΚΑΣΙΑΣ';
+  assert.equal(runProgram(src).errors[0], 'M_REDECLARED');
+});
+
+test('στοιχείο πίνακα ως παράμετρος διαδικασίας: χωρίς W_NEVER_ASSIGNED', () => {
+  const src = `ΠΡΟΓΡΑΜΜΑ Π\nΜΕΤΑΒΛΗΤΕΣ\n  ΑΚΕΡΑΙΕΣ: A[3]\nΑΡΧΗ\n  ΚΑΛΕΣΕ Αύξησε(A[1])\n  ΓΡΑΨΕ A[1]\nΤΕΛΟΣ_ΠΡΟΓΡΑΜΜΑΤΟΣ\n${PROC_INC}`;
+  assert.ok(!runProgram(src).warnings.includes('W_NEVER_ASSIGNED'));
+});
+
+test('πίνακας υπερβολικού μεγέθους: σφάλμα μεταγλώττισης, όχι εξαίρεση JavaScript', () => {
+  const r = runProgram(H('x <- 1', 'ΑΚΕΡΑΙΕΣ: x, Α[65536, 65536]'));
+  assert.equal(r.errors[0], 'M_ARRAY_TOO_LARGE');
+});
+
+test('συνάρτηση με τιμή μόνο σε ορισμένες διαδρομές: προειδοποίηση', () => {
+  assert.ok(runProgram(FUNC_NO_RESULT).warnings.includes('W_FUNCTION_RESULT_PATH'));
+});
