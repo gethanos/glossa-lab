@@ -139,3 +139,25 @@ test('πίνακας υπερβολικού μεγέθους: σφάλμα με�
 test('συνάρτηση με τιμή μόνο σε ορισμένες διαδρομές: προειδοποίηση', () => {
   assert.ok(runProgram(FUNC_NO_RESULT).warnings.includes('W_FUNCTION_RESULT_PATH'));
 });
+
+test('ΓΛΩΣΣΑ: αλφαβητική σύγκριση ελληνικών (χωρίς πεζά/κεφαλαία, τόνους, ς=σ)', () => {
+  const cmp = (expr) => runProgram(H(`b <- ${expr}\nΓΡΑΨΕ b`)).output[0];
+  assert.equal(cmp("'β' < 'έ'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'Άλφα' = 'αλφα'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'ΜΕΤΑΣ' = 'μετας'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'μέτρος' = 'μετροσ'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'ω' > 'ψ'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'αβ' < 'αγ'"), 'ΑΛΗΘΗΣ');
+  assert.equal(cmp("'a' = 'A'"), 'ΨΕΥΔΗΣ');
+  assert.equal(cmp("'é' = 'e'"), 'ΨΕΥΔΗΣ');
+});
+
+test('ΓΛΩΣΣΑ: η σύγκριση δεν αλλάζει την αποθηκευμένη τιμή', () => {
+  const r = runProgram(H("s <- 'Άλφα'\nb <- s = 'ΑΛΦΑ'\nΓΡΑΨΕ s, b", 'ΧΑΡΑΚΤΗΡΕΣ: s\n  ΛΟΓΙΚΕΣ: b'));
+  assert.deepEqual(r.output, ['Άλφα ΑΛΗΘΗΣ']);
+});
+
+test('ψευδογλώσσα: η σύγκριση κειμένων παραμένει αυστηρή', () => {
+  const r = runProgram('Αλγόριθμος Τ\nΑν "Α" = "α" τότε\n  Εμφάνισε 1\nαλλιώς\n  Εμφάνισε 0\nΤέλος_αν\nΤέλος Τ', [], 'pseudo');
+  assert.deepEqual(r.output, ['0']);
+});
