@@ -292,3 +292,140 @@ test('αυτόματη συμπλήρωση: η κύλιση της λίστας
   assert.equal(popup.style.maxHeight, '120px', 'η κύλιση της λίστας δεν πρέπει να την ξαναϋπολογίζει');
   $('.code-input').dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 });
+
+/** Γράφει όλο τον κώδικα στον επεξεργαστή και τον εκτελεί μέχρι το τέλος. */
+async function runCode(code) {
+  const ta = $('.code-input');
+  ta.value = code;
+  ta.dispatchEvent(new w.InputEvent('input', { bubbles: true }));
+  $('#inputs').value = '';
+  click('#btn-run');
+  await sleep(80);
+  assert.equal(status(), 'Ολοκληρώθηκε');
+}
+
+const STACK_GLOSSA = `ΠΡΟΓΡΑΜΜΑ Στοίβα
+ΣΤΑΘΕΡΕΣ
+  Ν = 4
+ΜΕΤΑΒΛΗΤΕΣ
+  ΑΚΕΡΑΙΕΣ: Σ[Ν], top, x
+ΑΡΧΗ
+  top <- 0
+  top <- top + 1
+  Σ[top] <- 10
+  top <- top + 1
+  Σ[top] <- 20
+  top <- top + 1
+  Σ[top] <- 30
+  x <- Σ[top]
+  top <- top - 1
+  ΓΡΑΨΕ x
+ΤΕΛΟΣ_ΠΡΟΓΡΑΜΜΑΤΟΣ`;
+
+test('στοίβα: κατακόρυφη απεικόνιση με τον δείκτη top', async () => {
+  await selectDialect('glossa');
+  await runCode(STACK_GLOSSA);
+  const stack = $('.structure-stack');
+  assert.ok(stack, 'ο πίνακας εμφανίζεται ως στοίβα (αυτόματη αναγνώριση από το όνομα top)');
+  const slots = $$('.stack .slot');
+  assert.deepEqual(slots.map((s) => s.querySelector('.slot-index').textContent), ['4', '3', '2', '1'], 'η θέση 1 είναι στη βάση');
+  const pointer = $('.stack .slot.is-pointer');
+  assert.equal(pointer.querySelector('.slot-index').textContent, '2');
+  assert.match(pointer.querySelector('.pointer').textContent, /top = 2/);
+  const third = slots.find((s) => s.querySelector('.slot-index').textContent === '3');
+  assert.ok(third.classList.contains('is-outside'), 'μετά την απώθηση η θέση 3 δεν ανήκει στη στοίβα');
+  assert.equal(third.querySelector('.slot-value').textContent, '30', 'η τιμή παραμένει στον πίνακα');
+});
+
+test('στοίβα: επιστροφή σε απλό πίνακα από την κεφαλίδα', async () => {
+  const arrayButton = $$('.view-switch button').find((b) => b.textContent === 'Πίνακας');
+  arrayButton.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  assert.equal($('.structure-stack'), null);
+  assert.ok($('.arr-1d'));
+});
+
+const QUEUE_PSEUDO = `Αλγόριθμος Ουρά
+front ← 0
+rear ← 0
+Για i από 1 μέχρι 3
+  Αν front = 0 και rear = 0 τότε
+    front ← 1
+    rear ← 1
+  αλλιώς
+    rear ← rear + 1
+  Τέλος_αν
+  Ο[rear] ← i * 10
+Τέλος_επανάληψης
+x ← Ο[front]
+front ← front + 1
+Εμφάνισε x
+Τέλος Ουρά`;
+
+test('ουρά: δείκτες εμπρός και πίσω (ψευδογλώσσα)', async () => {
+  await selectDialect('pseudo');
+  await runCode(QUEUE_PSEUDO);
+  assert.ok($('.structure-queue'), 'ο πίνακας εμφανίζεται ως ουρά (front/rear)');
+  const slots = $$('.queue .slot');
+  assert.equal(slots.length, 3);
+  assert.ok(slots[0].classList.contains('is-outside'), 'το στοιχείο της θέσης 1 εξήχθη');
+  assert.match(slots[1].querySelector('.pointer-front').textContent, /front/);
+  assert.match(slots[2].querySelector('.pointer-rear').textContent, /rear/);
+  assert.match($('.structure-queue .structure-info').textContent, /2 στοιχεία στην ουρά/);
+  await selectDialect('glossa');
+});
+
+test('στοίβα με δείκτη άλλου ονόματος: επιλογή από τον χρήστη', async () => {
+  await selectDialect('glossa');
+  await runCode(STACK_GLOSSA.replaceAll('top', 'κ'));
+  assert.equal($('.structure-stack'), null, 'χωρίς το όνομα top δεν γίνεται αυτόματη αναγνώριση');
+  $$('.view-switch button').find((b) => b.textContent === 'Στοίβα').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  const select = $('.pointer-select select');
+  select.value = 'Κ';
+  select.dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.ok($('.structure-stack'));
+  assert.match($('.stack .slot.is-pointer .pointer').textContent, /κ = 2/);
+});
+
+test('ψευδογλώσσα: χωρίς δηλωμένο μέγεθος δεν εμφανίζεται «γεμάτη»', async () => {
+  await selectDialect('pseudo');
+  await runCode('Αλγόριθμος Σ\ntop ← 0\nΓια i από 1 μέχρι 3\n  top ← top + 1\n  Π[top] ← i\nΤέλος_επανάληψης\nΕμφάνισε top\nΤέλος Σ');
+  const info = $('.structure-stack .structure-info').textContent;
+  assert.doesNotMatch(info, /Γεμάτη/);
+  assert.match(info, /3 στοιχεία στη στοίβα/);
+  assert.match(info, /δεν έχει δηλωμένο μέγεθος/);
+  await selectDialect('glossa');
+});
+
+test('ΓΛΩΣΣΑ: γεμάτη στοίβα με δηλωμένο μέγεθος', async () => {
+  await selectDialect('glossa');
+  // τέταρτη ώθηση αντί για απώθηση: top = Ν = 4
+  await runCode(STACK_GLOSSA.replace('  x <- Σ[top]\n  top <- top - 1\n  ΓΡΑΨΕ x', '  top <- top + 1\n  Σ[top] <- 40\n  ΓΡΑΨΕ top'));
+  assert.match($('.structure-stack .structure-info').textContent, /Γεμάτη/);
+});
+
+test('ουρά: μετά την εξαγωγή του τελευταίου στοιχείου front = rear = 0 και η ουρά είναι άδεια', async () => {
+  await selectDialect('pseudo');
+  await loadExample('p-queue');
+  $('#inputs').value = ['1', 'Μαρία', '2', '0'].join('\n');
+  click('#btn-run');
+  await sleep(80);
+  assert.equal(status(), 'Ολοκληρώθηκε');
+  const info = $('.structure-queue .structure-info').textContent;
+  assert.match(info, /0 στοιχεία στην ουρά \(front = 0, rear = 0\)/);
+  assert.match(info, /Άδεια/);
+  assert.ok($$('.queue .slot').every((x) => x.classList.contains('is-outside')));
+  await selectDialect('glossa');
+});
+
+test('ΓΛΩΣΣΑ: το παράδειγμα «Ουρά» εμφανίζεται ως ουρά και δείχνει πότε γεμίζει', async () => {
+  await selectDialect('glossa');
+  await loadExample('queue');
+  $('#inputs').value = ['1', 'Α', '1', 'Β', '1', 'Γ', '1', 'Δ', '1', 'Ε', '1', '0'].join('\n');
+  click('#btn-run');
+  await sleep(80);
+  assert.equal(status(), 'Ολοκληρώθηκε');
+  assert.ok($$('.out-line').some((l) => l.textContent === 'Γεμάτη ουρά'));
+  const info = $('.structure-queue .structure-info').textContent;
+  assert.match(info, /5 στοιχεία στην ουρά \(front = 1, rear = 5\)/);
+  assert.match(info, /Γεμάτη/);
+});
