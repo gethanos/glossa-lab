@@ -6,6 +6,10 @@ import assert from 'node:assert/strict';
 import { examplesFor } from '../src/examples.js';
 import { runProgram } from './helpers.mjs';
 
+// Τα μενού των παραδειγμάτων στοίβας και ουράς εμφανίζονται σε κάθε επανάληψη.
+const STACK_MENU = '1: ώθηση, 2: απώθηση, 0: τέλος';
+const QUEUE_MENU = '1: εισαγωγή, 2: εξαγωγή, 0: τέλος';
+
 const GLOSSA = {
   hello: { inputs: ['3', '4'], output: ['Δώσε μήκος και πλάτος', 'Εμβαδόν: 12'] },
   sum: { inputs: ['5'], output: ['Άθροισμα: 15'] },
@@ -21,6 +25,24 @@ const GLOSSA = {
   },
   bubble: { inputs: [], output: ['3', '7', '11', '19', '25', '42'] },
   matrix: { inputs: [], output: ['Γραμμή 1 : 10', 'Γραμμή 2 : 20', 'Γραμμή 3 : 30'] },
+  stack: {
+    // ώθηση 10, 20, 30, απώθηση, ώθηση 40, τέλος
+    inputs: ['1', '10', '1', '20', '1', '30', '2', '1', '40', '0'],
+    output: [
+      STACK_MENU, 'Δώσε αριθμό', STACK_MENU, 'Δώσε αριθμό', STACK_MENU, 'Δώσε αριθμό',
+      STACK_MENU, 'Βγήκε το 30', STACK_MENU, 'Δώσε αριθμό', STACK_MENU,
+    ],
+  },
+  queue: {
+    // εισαγωγή Μαρία, Νίκος, εξαγωγή, εξαγωγή (η ουρά αδειάζει: front = rear = 0),
+    // εξαγωγή από άδεια ουρά, εισαγωγή Ελένη (front = rear = 1), τέλος
+    inputs: ['1', 'Μαρία', '1', 'Νίκος', '2', '2', '2', '1', 'Ελένη', '0'],
+    output: [
+      QUEUE_MENU, 'Δώσε όνομα πελάτη', QUEUE_MENU, 'Δώσε όνομα πελάτη',
+      QUEUE_MENU, 'Εξυπηρετείται: Μαρία', QUEUE_MENU, 'Εξυπηρετείται: Νίκος',
+      QUEUE_MENU, 'Άδεια ουρά', QUEUE_MENU, 'Δώσε όνομα πελάτη', QUEUE_MENU,
+    ],
+  },
   menu: { inputs: ['8', '*', '5'], output: ['40'] },
   subs: { inputs: [], output: ['Μέγιστο: 9', 'Μετά την αντιμετάθεση: 9 4'] },
   bugs: { inputs: [], output: [], runtime: 'R_UNINITIALIZED', line: 12 },
@@ -37,6 +59,16 @@ const PSEUDO = {
     output: ['Δώσε ηλικία (1-120)', 'Δώσε ηλικία (1-120)', 'Δώσε ηλικία (1-120)', 'Έγκυρη ηλικία: 30'],
   },
   'p-sort': { inputs: [], output: ['3', '7', '19', '25', '42'] },
+  'p-queue': {
+    // εισαγωγή Μαρία, Νίκος, εξαγωγή, εξαγωγή (η ουρά αδειάζει: front = rear = 0),
+    // εξαγωγή από άδεια ουρά, εισαγωγή Ελένη (front = rear = 1), τέλος
+    inputs: ['1', 'Μαρία', '1', 'Νίκος', '2', '2', '2', '1', 'Ελένη', '0'],
+    output: [
+      QUEUE_MENU, 'Δώσε όνομα πελάτη', QUEUE_MENU, 'Δώσε όνομα πελάτη',
+      QUEUE_MENU, 'Εξυπηρετείται: Μαρία', QUEUE_MENU, 'Εξυπηρετείται: Νίκος',
+      QUEUE_MENU, 'Άδεια ουρά', QUEUE_MENU, 'Δώσε όνομα πελάτη', QUEUE_MENU,
+    ],
+  },
   'p-call': { inputs: ['4', '9'], output: ['Μέγιστος: 9'] },
   'p-factorial': { inputs: ['5'], output: ['5 ! = 120'] },
   'p-bugs': { inputs: [], output: [], runtime: 'R_UNINITIALIZED', line: 8 },
