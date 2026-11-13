@@ -115,10 +115,19 @@ export class MemoryView {
     ]);
   }
 
-  /** Πώς εμφανίζεται ένας πίνακας: επιλογή του χρήστη, αλλιώς αυτόματη αναγνώριση. */
+  /**
+   * Πώς εμφανίζεται ένας πίνακας: επιλογή του χρήστη, αλλιώς αυτόματη αναγνώριση.
+   * Η επιλογή του χρήστη μένει και σε νέες εκτελέσεις, ενώ ο κώδικας μπορεί να έχει αλλάξει
+   * στο μεταξύ. Γι' αυτό κάθε αποθηκευμένος δείκτης ελέγχεται στο τρέχον πλαίσιο: αν η
+   * μεταβλητή δεν υπάρχει πια ή δεν είναι απλή αριθμητική μεταβλητή, ο δείκτης αφαιρείται.
+   */
   structureOf(frame, cell) {
     const chosen = this.structures.get(structureKey(frame, cell));
-    return chosen || suggestStructure(frame, cell);
+    if (!chosen) return suggestStructure(frame, cell);
+    const valid = new Set(pointerCandidates(frame).map((c) => c.norm));
+    const pointers = Object.fromEntries(Object.entries(chosen.pointers)
+      .map(([role, norm]) => [role, norm && valid.has(norm) ? norm : null]));
+    return { mode: chosen.mode, pointers };
   }
 
   setStructure(frame, cell, structure) {

@@ -70,6 +70,37 @@ function capacity(cell, pointerValues) {
   return { size, known: false };
 }
 
+// Όπως και στον απλό πίνακα, εμφανίζονται το πολύ τόσες θέσεις, ώστε ένας μεγάλος πίνακας
+// να μην «παγώνει» τη σελίδα σε κάθε βήμα.
+const MAX_SLOTS = 400;
+
+/**
+ * Ποιες θέσεις εμφανίζονται: όλες, αν χωρούν· αλλιώς ένα «παράθυρο» MAX_SLOTS θέσεων που
+ * περιέχει τους δείκτες (αν απέχουν περισσότερο, προηγείται ο πρώτος: top ή front).
+ * @param {number} size πλήθος θέσεων
+ * @param {(number|null)[]} pointerValues τιμές δεικτών, με σειρά προτεραιότητας
+ */
+function visibleRange(size, pointerValues) {
+  if (size <= MAX_SLOTS) return { from: 1, to: size, truncated: false };
+  const inside = pointerValues.filter((n) => Number.isInteger(n) && n >= 1 && n <= size);
+  let from = 1;
+  if (inside.length) {
+    const lo = Math.min(...inside);
+    const hi = Math.max(...inside);
+    from = hi - lo + 1 <= MAX_SLOTS
+      ? lo - Math.floor((MAX_SLOTS - (hi - lo + 1)) / 2)
+      : inside[0] - Math.floor(MAX_SLOTS / 2);
+  }
+  from = Math.max(1, Math.min(from, size - MAX_SLOTS + 1));
+  return { from, to: from + MAX_SLOTS - 1, truncated: true };
+}
+
+function rangeNote(range, size) {
+  return range.truncated
+    ? h('p', { class: 'muted small' }, `Εμφανίζονται οι θέσεις ${range.from} έως ${range.to} από ${size}.`)
+    : null;
+}
+
 const UNKNOWN_SIZE_NOTE = 'Ο πίνακας δεν έχει δηλωμένο μέγεθος: το όριο της δομής το ελέγχει ο ίδιος ο αλγόριθμος (π.χ. με μια μεταβλητή για τη χωρητικότητα).';
 
 /**
@@ -80,9 +111,10 @@ export function renderStack(ctx) {
   const top = pointerValue(frame, pointers.top);
   const topName = pointers.top ? frame.vars.get(pointers.top).name : 'top';
   const cap = capacity(cell, [top]);
+  const range = visibleRange(cap.size, [top]);
   const topChanged = pointers.top && changed.has(cellKey(frame, frame.vars.get(pointers.top), null));
   const slots = [];
-  for (let i = cap.size; i >= 1; i--) {
+  for (let i = range.to; i >= range.from; i--) {
     const inside = top !== null && i <= top;
     const v = cell.array.get([i]);
     const key = cellKey(frame, cell, cell.array.keyOf([i]));
@@ -96,12 +128,15 @@ export function renderStack(ctx) {
       i === top ? h('span', { class: `pointer${topChanged ? ' is-changed' : ''}` }, `← ${topName} = ${top}`) : null,
     ]));
   }
-  const base = h('li', { class: 'slot-base' }, top === 0
-    ? h('span', { class: `pointer${topChanged ? ' is-changed' : ''}` }, `← ${topName} = 0 (άδεια)`)
-    : '');
+  // Η βάση της στοίβας (κάτω από τη θέση 1) φαίνεται μόνο όταν φαίνεται και η θέση 1.
+  const base = range.from === 1
+    ? h('li', { class: 'slot-base' }, top === 0
+      ? h('span', { class: `pointer${topChanged ? ' is-changed' : ''}` }, `← ${topName} = 0 (άδεια)`)
+      : '')
+    : null;
   return h('div', { class: 'structure structure-stack' }, [
     h('ol', { class: 'stack', 'aria-label': `Στοίβα ${cell.name}` }, [...slots, base]),
-    h('div', { class: 'structure-info' }, stackStatus(top, cap, topName)),
+    h('div', { class: 'structure-info' }, [rangeNote(range, cap.size), ...stackStatus(top, cap, topName)]),
   ]);
 }
 
@@ -131,10 +166,11 @@ export function renderQueue(ctx) {
   const frontName = pointers.front ? frame.vars.get(pointers.front).name : 'front';
   const rearName = pointers.rear ? frame.vars.get(pointers.rear).name : 'rear';
   const cap = capacity(cell, [front, rear]);
+  const range = visibleRange(cap.size, [front, rear]);
   const first = front === null ? null : Math.max(front, 1);
   const changedPointer = (norm) => norm && changed.has(cellKey(frame, frame.vars.get(norm), null));
   const cells = [];
-  for (let i = 1; i <= cap.size; i++) {
+  for (let i = range.from; i <= range.to; i++) {
     const inside = first !== null && rear !== null && i >= first && i <= rear;
     const v = cell.array.get([i]);
     const key = cellKey(frame, cell, cell.array.keyOf([i]));
@@ -153,7 +189,7 @@ export function renderQueue(ctx) {
   }
   return h('div', { class: 'structure structure-queue' }, [
     h('div', { class: 'queue-scroll' }, h('ol', { class: 'queue', 'aria-label': `Ουρά ${cell.name}` }, cells)),
-    h('div', { class: 'structure-info' }, queueStatus(front, rear, cap, frontName, rearName)),
+    h('div', { class: 'structure-info' }, [rangeNote(range, cap.size), ...queueStatus(front, rear, cap, frontName, rearName)]),
   ]);
 }
 
