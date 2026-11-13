@@ -429,3 +429,44 @@ test('ΓΛΩΣΣΑ: το παράδειγμα «Ουρά» εμφανίζετα�
   assert.match(info, /5 στοιχεία στην ουρά \(front = 1, rear = 5\)/);
   assert.match(info, /Γεμάτη/);
 });
+
+test('στοίβα σε μεγάλο πίνακα: εμφανίζονται έως 400 θέσεις γύρω από τον δείκτη', async () => {
+  await selectDialect('glossa');
+  await runCode(`ΠΡΟΓΡΑΜΜΑ Μεγάλη
+ΜΕΤΑΒΛΗΤΕΣ
+  ΑΚΕΡΑΙΕΣ: Σ[5000], top, i
+ΑΡΧΗ
+  top <- 0
+  ΓΙΑ i ΑΠΟ 1 ΜΕΧΡΙ 1000
+    top <- top + 1
+    Σ[top] <- i
+  ΤΕΛΟΣ_ΕΠΑΝΑΛΗΨΗΣ
+ΤΕΛΟΣ_ΠΡΟΓΡΑΜΜΑΤΟΣ`);
+  assert.equal($$('.stack .slot').length, 400);
+  assert.equal($('.stack .slot.is-pointer .slot-index').textContent, '1000', 'ο δείκτης top είναι μέσα στις θέσεις που φαίνονται');
+  assert.match($('.structure-stack .structure-info').textContent, /Εμφανίζονται οι θέσεις \d+ έως \d+ από 5000/);
+});
+
+test('ουρά με μακρινούς δείκτες: έως 400 θέσεις, προηγείται ο front', async () => {
+  await selectDialect('pseudo');
+  await runCode('Αλγόριθμος Μ\nfront ← 1\nrear ← 1\nΟ[1] ← 5\nrear ← 900\nΟ[900] ← 7\nΕμφάνισε front, rear\nΤέλος Μ');
+  assert.equal($$('.queue .slot').length, 400);
+  assert.ok($('.queue .pointer-front'), 'ο δείκτης front φαίνεται');
+  assert.match($('.structure-queue .structure-info').textContent, /Εμφανίζονται οι θέσεις 1 έως 400 από 900/);
+  await selectDialect('glossa');
+});
+
+test('αποθηκευμένη επιλογή δείκτη που δεν υπάρχει πια στον κώδικα', async () => {
+  await selectDialect('glossa');
+  await runCode(STACK_GLOSSA.replaceAll('top', 'κ'));
+  $$('.view-switch button').find((b) => b.textContent === 'Στοίβα').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  const select = $('.pointer-select select');
+  select.value = 'Κ';
+  select.dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.match($('.stack .slot.is-pointer .pointer').textContent, /κ = 2/);
+  // Ο μαθητής μετονομάζει τη μεταβλητή και ξανατρέχει: η επιλογή δεν πρέπει να «σπάει» τη μνήμη.
+  await runCode(STACK_GLOSSA.replaceAll('top', 'λ'));
+  assert.ok($('.structure-stack'), 'η απεικόνιση στοίβας παραμένει');
+  assert.equal($('.pointer-select select').value, '', 'ο δείκτης που δεν υπάρχει αφαιρέθηκε');
+  assert.match($('.structure-stack .structure-info').textContent, /δεν έχει ακόμη τιμή/);
+});
